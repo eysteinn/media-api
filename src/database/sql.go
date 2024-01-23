@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	_ "embed"
+	"log"
 	"os"
 	"path"
 
@@ -16,13 +17,24 @@ var dbfile = "photos.sqlite"
 //go:embed photos_create.sql
 var sql_photos_create string
 
+//go:embed faces_create.sql
+var sql_faces_create string
+
 func GetDB() *sql.DB {
 	if db == nil {
 		Init()
 	}
 	return db
 }
-
+func tableExists(db *sql.DB, tableName string) (bool, error) {
+	var exists bool
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+	err := db.QueryRow(query, tableName).Scan(&exists)
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+	return exists, nil
+}
 func Init() error {
 	if db == nil {
 		fileexists := fileExists(dbfile)
@@ -43,6 +55,18 @@ func Init() error {
 		// Execute the SQL statement to create the table
 		if fileexists == false {
 			_, err = db.Exec(sql_photos_create)
+			if err != nil {
+				return err
+			}
+		}
+
+		exists, err := tableExists(db, "faces")
+		if err != nil {
+			return err
+		}
+		if !exists {
+			log.Println("Creating faces table")
+			_, err = db.Exec(sql_faces_create)
 			if err != nil {
 				return err
 			}
